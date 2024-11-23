@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import serial  # PySerial library for serial communication
 import json
+import uvicorn
 
 app = FastAPI()
 
@@ -68,4 +69,21 @@ async def send_command(command: str):
     # Wait for a response
     response = ser.readline().decode().strip()
     return {"command": command, "response": response}
+
+
+def start_server():
+    """
+    Start the Uvicorn server with HTTPS support.
+    """
+    uvicorn.run(
+        "main:app",  # Replace `app:app` with the module name if not named `app.py`
+        host="0.0.0.0",  # Allow connections from any IP
+        port=8000,  # Port for the HTTPS server
+        ssl_certfile="./certs/acme.crt",  # Path to your certificate file
+        ssl_keyfile="./certs/acme.key",  # Path to your private key file
+    )
+
+
+if __name__ == "__main__":
+    start_server()
 
