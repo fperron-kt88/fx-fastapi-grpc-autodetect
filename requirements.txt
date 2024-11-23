@@ -1,0 +1,6 @@
+simple_rpc
+pyserial
+arduino-simple-rpc
+uvicorn
+fastapi
+
