@@ -1,34 +1,39 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import serial
-import json
-import uvicorn
 import asyncio
+from simple_rpc import Interface
 from contextlib import asynccontextmanager
+import json
 
-# Initialize Serial Communication
+# Configuration for the serial interface
 SERIAL_PORT = "/dev/ttyUSB0"  # Replace with your ESP32's serial port
 BAUD_RATE = 115200
-ser = None  # Global variable for serial connection
+
+# Global variable for the Interface object
+interface = None
 
 
-# Define lifespan context manager
+# Lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global ser
+    global interface
     try:
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        print("Initializing Interface...")
+        interface = Interface(SERIAL_PORT, BAUD_RATE)
+        if not interface.is_open:
+            raise RuntimeError("Failed to open interface.")
         print(f"Connected to {SERIAL_PORT}")
-    except serial.SerialException:
-        ser = None
-        print(f"Failed to connect to {SERIAL_PORT}. Ensure your ESP32 is connected.")
+    except Exception as e:
+        print(f"Error initializing Interface: {e}")
+        interface = None
 
     yield  # Application runs here
 
-    if ser and ser.is_open:
-        print("Closing serial connection...")
-        ser.close()
+    # Close the Interface on shutdown
+    if interface and interface.is_open:
+        print("Closing interface...")
+        interface.close()
 
 
 # Initialize FastAPI app with lifespan
@@ -62,69 +67,65 @@ async def get_id_string():
     """
     Fetch board UUID and Git version as a plain string from the ESP32.
     """
-    if not ser:
-        return {"error": "Serial connection not available"}
+    global interface
+    if not interface or not interface.is_open:
+        return {"error": "Interface not available"}
 
-    # Send the `getId` command
-    command = "getId\n"
-    ser.write(command.encode())  # Send the command over Serial
-
-    # Wait for a response
-    response = ser.readline().decode().strip()
-    if not response:
-        return {"error": "No response from ESP32"}
-
-    # Return the raw string response
-    return {"id_string": response}
+    try:
+        response = interface.call_method("getId")
+        if response:
+            return {"id_string": response}
+        else:
+            return {"error": "No response from ESP32"}
+    except Exception as e:
+        return {"error": f"Failed to call method: {e}"}
 
 
 @app.get("/get-id-json")
 async def get_id_json():
     """
-    Fetch board UUID and Git version as JSON from the ESP32.
+    Fetch board UUID and Git version as an Object from the ESP32 and return it as JSON.
     """
-    if not ser:
-        return {"error": "Serial connection not available"}
+    print("Boink! This is a call to get-id-json....")
+    global interface
+    if interface is not None and interface.is_open():
+        try:
+            # Call the ESP32 method
+            raw_data = interface.getIdJson()
 
-    # Send the `getIdJson` command
-    command = "getIdJson\n"
-    ser.write(command.encode())  # Send the command over Serial
+            # Debugging: Print raw data
+            print(f"Raw data received: {raw_data}")
+            print(f"Type of raw data: {type(raw_data)}")
 
-    # Wait for a response
-    response = ser.readline().decode().strip()
-    if not response:
-        return {
-            "board_uuid": "unknown",
-            "git_version": "unknown",
-            "error": "No response from ESP32",
-        }
+            # Assuming raw_data is a dictionary-like object from the Object<int, String, String>
+            if isinstance(raw_data, dict):
+                return {
+                    "id": raw_data.get(0, "unknown"),  # First element (int id)
+                    "board_uuid": raw_data.get(1, "unknown"),  # Second element (board_uuid)
+                    "git_version": raw_data.get(2, "unknown"),  # Third element (git_version)
+                }
 
-    # Parse the JSON response
-    try:
-        data = json.loads(response)
-        # Validate keys to ensure they match the model
-        board_uuid = data.get("board_uuid", "unknown")
-        git_version = data.get("git_version", "unknown")
-        return {"board_uuid": board_uuid, "git_version": git_version}
-    except json.JSONDecodeError:
-        return {
-            "board_uuid": "unknown",
-            "git_version": "unknown",
-            "error": "Invalid JSON response from ESP32",
-            "raw_response": response,
-        }
+            # Handle unexpected format
+            return {"error": "Unexpected data format received from ESP32"}
+        except Exception as e:
+            print(f"Error: {e}")
+            return {"error": str(e)}
+
+    # Return an error if the interface is not available
+    print("Interface is not available or not open.")
+    return {"error": "Interface not available"}
 
 
 # Main entry point for running the server
 if __name__ == "__main__":
+    import signal
+    import uvicorn
 
     def handle_exit(sig, frame):
         print("Received signal to terminate, shutting down...")
         asyncio.get_event_loop().stop()
 
     # Register signal handlers
-    import signal
-
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
 

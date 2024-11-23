@@ -1,3 +1,8 @@
 venv/
 *.swp
 __pycache__/
+
+# trick to ignore the certs but keep the directory
+certs/*
+!certs/.gitignore
+
