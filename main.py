@@ -84,29 +84,34 @@ async def get_id_string():
 @app.get("/get-id-json")
 async def get_id_json():
     """
-    Fetch board UUID and Git version as an Object from the ESP32 and return it as JSON.
+    Fetch board UUID and Git version from the ESP32 and return it as JSON.
     """
     print("Boink! This is a call to get-id-json....")
     global interface
     if interface is not None and interface.is_open():
         try:
-            # Call the ESP32 method
+            # Call the ESP32 method and retrieve raw tuple data
             raw_data = interface.getIdJson()
 
-            # Debugging: Print raw data
+            # Debugging: Log raw data and type
             print(f"Raw data received: {raw_data}")
             print(f"Type of raw data: {type(raw_data)}")
 
-            # Assuming raw_data is a dictionary-like object from the Object<int, String, String>
-            if isinstance(raw_data, dict):
+            # Check if raw_data is a tuple with expected fields
+            if isinstance(raw_data, tuple) and len(raw_data) == 2:
+                board_uuid = raw_data[0].decode("utf-8") if isinstance(raw_data[0], bytes) else raw_data[0]
+                git_version = raw_data[1].decode("utf-8") if isinstance(raw_data[1], bytes) else raw_data[1]
+
+                # Return the structured JSON response
                 return {
-                    "id": raw_data.get(0, "unknown"),  # First element (int id)
-                    "board_uuid": raw_data.get(1, "unknown"),  # Second element (board_uuid)
-                    "git_version": raw_data.get(2, "unknown"),  # Third element (git_version)
+                    "board_uuid": board_uuid,
+                    "git_version": git_version,
                 }
 
-            # Handle unexpected format
+            # Handle unexpected data format
+            print("Unexpected tuple format or size.")
             return {"error": "Unexpected data format received from ESP32"}
+
         except Exception as e:
             print(f"Error: {e}")
             return {"error": str(e)}
