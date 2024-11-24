@@ -1,3 +1,8 @@
+# Copyright 2024 Francois Perron
+# This software is proprietary and confidential.
+# Use is subject to the accompanying license agreement.
+
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from DeviceManager import DeviceManager

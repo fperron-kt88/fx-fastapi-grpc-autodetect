@@ -1,3 +1,7 @@
+# Copyright 2024 Francois Perron
+# This software is proprietary and confidential.
+# Use is subject to the accompanying license agreement.
+
 import json
 import time
 from simple_rpc import Interface
@@ -6,7 +10,9 @@ from threading import Lock
 
 
 class DeviceManager:
-    def __init__(self, baud_rate=115200, max_retries=5, retry_delay=2, connection_timeout=10):
+    def __init__(
+        self, baud_rate=115200, max_retries=5, retry_delay=2, connection_timeout=10
+    ):
         """
         Initialize the device manager with connection settings.
         """
@@ -39,7 +45,11 @@ class DeviceManager:
         if not (isinstance(raw_data, tuple) and len(raw_data) > 0):
             raise RuntimeError("Invalid data format received from the device.")
 
-        return raw_data[0].decode("utf-8") if isinstance(raw_data[0], bytes) else raw_data[0]
+        return (
+            raw_data[0].decode("utf-8")
+            if isinstance(raw_data[0], bytes)
+            else raw_data[0]
+        )
 
     def _validate_or_set_uuid(self):
         """
@@ -69,7 +79,9 @@ class DeviceManager:
 
             for port in available_ports:
                 try:
-                    print(f"Attempting to connect to port: {port}, and baud: {self.baud_rate}...")
+                    print(
+                        f"Attempting to connect to port: {port}, and baud: {self.baud_rate}..."
+                    )
                     self.interface = Interface(port, self.baud_rate)
                     if self.interface.is_open:
                         print(f"Connected to {port}")
@@ -81,9 +93,13 @@ class DeviceManager:
 
             retries += 1
             elapsed_time = time.time() - start_time
-            print(f"Retry {retries}/{self.max_retries} failed. Elapsed time: {elapsed_time:.2f}s")
+            print(
+                f"Retry {retries}/{self.max_retries} failed. Elapsed time: {elapsed_time:.2f}s"
+            )
             if elapsed_time > self.connection_timeout:
-                raise RuntimeError(f"Connection timeout exceeded ({self.connection_timeout} seconds). Ports tried: {available_ports}")
+                raise RuntimeError(
+                    f"Connection timeout exceeded ({self.connection_timeout} seconds). Ports tried: {available_ports}"
+                )
             time.sleep(self.retry_delay)
 
         raise RuntimeError(f"Failed to connect after {self.max_retries} retries.")
@@ -165,8 +181,10 @@ class DeviceManager:
             ]
 
             if isinstance(raw_data, tuple) and len(raw_data) == len(field_names):
-                return {field: value.decode("utf-8") if isinstance(value, bytes) else value
-                        for field, value in zip(field_names, raw_data)}
+                return {
+                    field: value.decode("utf-8") if isinstance(value, bytes) else value
+                    for field, value in zip(field_names, raw_data)
+                }
 
             return {"error": "Unexpected data format"}
         except Exception as e:
@@ -179,4 +197,3 @@ class DeviceManager:
         """
         print(f"Clearing stored UUID. Previous UUID: {self.device_uuid}")
         self.device_uuid = None
-
