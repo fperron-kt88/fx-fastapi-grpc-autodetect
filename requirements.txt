@@ -1,5 +1,5 @@
-simple_rpc
 pyserial
+simple_rpc
 arduino-simple-rpc
 uvicorn
 fastapi

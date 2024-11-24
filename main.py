@@ -4,12 +4,8 @@ from DeviceManager import DeviceManager
 from contextlib import asynccontextmanager
 import asyncio
 
-# Configuration for the serial interface
-SERIAL_PORT = "/dev/ttyUSB0"
-BAUD_RATE = 115200
-
 # DeviceManager instance
-device_manager = DeviceManager(SERIAL_PORT, BAUD_RATE)
+device_manager = DeviceManager()
 
 
 # Lifespan context manager
@@ -19,10 +15,10 @@ async def lifespan(app: FastAPI):
         device_manager.connect()
     except Exception as e:
         print(f"Error during device initialization: {e}")
+        print("Proceeding without a connected device.")  # Allow server to start
 
     yield  # Application runs here
 
-    # Disconnect the device on shutdown
     device_manager.disconnect()
 
 
@@ -43,7 +39,19 @@ async def root():
     """
     Root endpoint for testing the API.
     """
-    return {"message": "Welcome to the grpc FastAPI backend interface!"}
+    status = "connected" if device_manager.is_connected() else "disconnected"
+    return {
+        "message": "Welcome to the grpc FastAPI backend interface!",
+        "status": status,
+    }
+
+
+@app.get("/get-active-interface")
+async def get_active_interface():
+    """
+    Return the active serial interface using the device manager.
+    """
+    return device_manager.get_active_interface()
 
 
 @app.get("/get-device-id")
@@ -52,6 +60,15 @@ async def get_device_id():
     Fetch unique identification data from the device and return it as JSON.
     """
     return device_manager.get_device_id()
+
+
+@app.post("/clear-uuid")
+async def clear_device_uuid():
+    """
+    Clear the stored UUID in the device manager.
+    """
+    device_manager.clear_uuid()
+    return {"message": "Stored UUID cleared. Ready to accept a new device."}
 
 
 # Main entry point for running the server
