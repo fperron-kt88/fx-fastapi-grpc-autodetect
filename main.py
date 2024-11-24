@@ -1,38 +1,29 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import asyncio
-from simple_rpc import Interface
+from DeviceManager import DeviceManager
 from contextlib import asynccontextmanager
-import json
+import asyncio
 
 # Configuration for the serial interface
 SERIAL_PORT = "/dev/ttyUSB0"
 BAUD_RATE = 115200
 
-# Global variable for the Interface object
-interface = None
+# DeviceManager instance
+device_manager = DeviceManager(SERIAL_PORT, BAUD_RATE)
 
 
 # Lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global interface
     try:
-        print("Initializing Interface...")
-        interface = Interface(SERIAL_PORT, BAUD_RATE)
-        if not interface.is_open:
-            raise RuntimeError("Failed to open interface.")
-        print(f"Connected to {SERIAL_PORT}")
+        device_manager.connect()
     except Exception as e:
-        print(f"Error initializing Interface: {e}")
-        interface = None
+        print(f"Error during device initialization: {e}")
 
     yield  # Application runs here
 
-    # Close the Interface on shutdown
-    if interface and interface.is_open:
-        print("Closing interface...")
-        interface.close()
+    # Disconnect the device on shutdown
+    device_manager.disconnect()
 
 
 # Initialize FastAPI app with lifespan
@@ -60,43 +51,7 @@ async def get_device_id():
     """
     Fetch unique identification data from the device and return it as JSON.
     """
-    global interface
-    if interface is not None and interface.is_open():
-        try:
-            # Call the ESP32 method and retrieve raw tuple data
-            raw_data = interface.getDeviceId()
-
-            # Expected field names corresponding to tuple values
-            field_names = [
-                "board_uuid",
-                "git_version",
-                "api_version",
-                "hw_version",
-                "device_name",
-            ]
-
-            # Check if raw_data is a tuple with the expected number of fields
-            if isinstance(raw_data, tuple) and len(raw_data) == len(field_names):
-                # Decode any bytes fields and map them to field names
-                response = {
-                    field: (value.decode("utf-8") if isinstance(value, bytes) else value)
-                    for field, value in zip(field_names, raw_data)
-                }
-
-                return response
-
-            # Handle unexpected data format
-            print("Unexpected tuple format or size.")
-            return {"error": "Unexpected data format received from the device"}
-
-        except Exception as e:
-            print(f"Error: {e}")
-            return {"error": str(e)}
-
-    # Return an error if the interface is not available
-    print("Interface is not available or not open.")
-    return {"error": "Interface not available"}
-
+    return device_manager.get_device_id()
 
 
 # Main entry point for running the server
